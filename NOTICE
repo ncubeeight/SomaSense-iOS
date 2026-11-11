@@ -1,0 +1,11 @@
+SomaSense for iOS
+Copyright 2026 ncubeeight LLC
+
+This project includes third-party material under its own terms:
+
+- Body model data (the base mesh in SomaSense/Resources/body-mesh.json, the
+  body shape offsets in SomaSense/Resources/body-shapes.json, and the body
+  pictures body-front.png and body-back.png rendered from them) is derived
+  from MakeHuman assets, released under CC0 1.0 Universal.
+  See licenses/MakeHuman-LICENSE.md and licenses/MakeHuman-LICENSE.ASSETS.md.
+  https://github.com/makehumancommunity/makehuman/blob/master/LICENSE.md
