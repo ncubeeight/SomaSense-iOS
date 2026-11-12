@@ -1,6 +1,6 @@
 # SomaSense - iOS
 
-SomaSense is a private symptom tracker: tap where you feel something on a 3D body, describe it, and see where and when symptoms happen over time. This is the native Swift version for iPhone. Everything stays on the device unless you choose to share it.
+SomaSense is a private symptom tracker: tap where you feel something on a 3D body or paint the area, describe it, and see where and when symptoms happen over time. This is the native Swift version for iPhone. Everything stays on the device unless you choose to share it.
 
 Website and privacy policy: [ncubeeight.github.io/SomaSense-iOS](https://ncubeeight.github.io/SomaSense-iOS/). The site is built by GitHub Pages from the `docs` folder.
 

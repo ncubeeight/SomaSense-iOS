@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The body map: tap to mark points, drag to turn, pinch to zoom.
+/// The body map: tap to mark points, hold and drag to paint areas, drag to turn, pinch to zoom.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -14,7 +14,7 @@ struct HomeView: View {
             viewChips
             GeometryReader { geo in
                 ZStack(alignment: .topLeading) {
-                    BodyStage(model: model, yaw: model.shownYaw, map: cam.clipMap, shapeVersion: model.shapeVersion)
+                    BodyStage(model: model, yaw: model.shownYaw, map: cam.clipMap, shapeVersion: model.shapeVersion, areas: model.selected.filter(\.isArea).map(\.id))
                     pins
                     sideLabels(geo.size)
                     controls
@@ -152,7 +152,7 @@ struct HomeView: View {
             VStack(spacing: 4) {
                 Text(zoomed ? "Tap the exact spot. Drag to move around." : "Tap where you feel it. Drag to turn the body.")
                     .font(.body.weight(.semibold)).foregroundStyle(Ink.text)
-                Text(zoomed ? "Pinch or use minus to zoom out." : "Zoom in to mark fingers or toes.")
+                Text(zoomed ? "Press and hold, then drag, to paint an area. Pinch or use minus to zoom out." : "Press and hold, then drag, to paint an area. Zoom in to paint fingers or toes.")
                     .font(.subheadline).foregroundStyle(Ink.muted)
             }
             .multilineTextAlignment(.center)
@@ -198,6 +198,8 @@ struct BodyStage: UIViewRepresentable {
     var yaw: Double
     var map: SIMD4<Float>
     var shapeVersion: Int
+    /// The marked areas, so the stage repaints when one is added or removed.
+    var areas: [String]
 
     func makeUIView(context: Context) -> BodyStageView {
         let v = BodyStageView(mesh: model.mesh, camera: model.camera)
@@ -206,6 +208,20 @@ struct BodyStage: UIViewRepresentable {
             let f = model.camera.toFigure(pt)
             model.tap(sx: f.sx, sy: f.sy)
         }
+        let haptic = UIImpactFeedbackGenerator(style: .light)
+        v.onPaint = { [weak model] event, pt in
+            guard let model else { return }
+            let f = model.camera.toFigure(pt)
+            switch event {
+            case .begin:
+                haptic.impactOccurred()
+                model.paintBegin(sx: f.sx, sy: f.sy)
+            case .move: model.paintMove(sx: f.sx, sy: f.sy)
+            case .end: model.paintEnd(keep: true)
+            case .cancel: model.paintEnd(keep: false)
+            }
+        }
+        v.paintScene = { [weak model] in model?.paintScene() ?? ([], nil) }
         return v
     }
 

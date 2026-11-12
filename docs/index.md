@@ -10,7 +10,7 @@ Use SomaSense to track feelings you have across the body over time and to monito
 
 ## How it works
 
-- **Body map:** tap where you feel something on a 3D body. Turn the body to mark the front, back or sides, and zoom in to mark fingers or toes.
+- **Body map:** tap where you feel something on a 3D body, or press and hold, then drag, to paint an area. Turn the body to mark the front, back or sides, and zoom in to mark fingers or toes.
 - **Reports:** describe each symptom with its type, severity, notes, medicines, physical activity and concerns.
 - **Calendar:** see which days had symptoms, colored by the highest severity, and mark days when you had none.
 - **Reports:** see how often each type of symptom happened over the last 7, 30 or 90 days, where on the body, at what time of day, and what was logged alongside it.

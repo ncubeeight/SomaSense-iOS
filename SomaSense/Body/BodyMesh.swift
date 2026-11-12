@@ -134,6 +134,9 @@ final class BodyMesh {
         return at
     }
 
+    /// The index (times three) of the vertex nearest a point on the body as shaped, or on the default body.
+    func nearestVertex(_ p: [Double], onBase: Bool = false) -> Int { nearest(p, in: onBase ? base : positions) }
+
     /// Points are stored on the default body. These move a point between it and the chosen shape,
     /// carried along with its nearest vertex, as the prototype does.
     /// Returns the point on the default body and the vertex it moves with.

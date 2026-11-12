@@ -9,6 +9,12 @@ final class BodyRenderer: NSObject, MTKViewDelegate {
         var map: SIMD4<Float>
     }
 
+    struct DecalUniforms {
+        var c2: Float, s2: Float, pad0: Float = 0, pad1: Float = 0
+        var box: SIMD4<Float>
+        var view: SIMD4<Float>
+    }
+
     /// One picture of the body: its angle, where the figure goes in clip space, and which part of the view it fills (0...1).
     struct Shot {
         var yaw: Double
@@ -29,6 +35,15 @@ final class BodyRenderer: NSObject, MTKViewDelegate {
     private let indices: MTLBuffer
     private let indexCount: Int
     private var uploaded = -1
+    private let strokePipeline: MTLRenderPipelineState?
+    private let areaPipeline: MTLRenderPipelineState?
+    private let paintDepth: MTLDepthStencilState?
+    private var areaGPU: [String: (tex: MTLTexture, ibuf: MTLBuffer, count: Int)] = [:]
+    private var liveGPU: (version: Int, touches: MTLBuffer, ibuf: MTLBuffer, count: Int, n: UInt32)?
+
+    /// Finished areas and the stroke being drawn, painted over the body.
+    var areas: [BodyPaint.Decal] = []
+    var live: BodyPaint.Live?
 
     var shots: [Shot] = []
     /// When set, works out the shots from the drawable's size each time it draws.
@@ -49,6 +64,28 @@ final class BodyRenderer: NSObject, MTKViewDelegate {
         desc.rasterSampleCount = BodyRenderer.sampleCount
         guard let pipeline = try? device.makeRenderPipelineState(descriptor: desc) else { return nil }
         self.pipeline = pipeline
+
+        // Paint multiplies its tint into the body already drawn.
+        func paintPipeline(_ fragment: String) -> MTLRenderPipelineState? {
+            let d = MTLRenderPipelineDescriptor()
+            d.vertexFunction = library.makeFunction(name: "paintVertex")
+            d.fragmentFunction = library.makeFunction(name: fragment)
+            d.colorAttachments[0].pixelFormat = .bgra8Unorm
+            d.colorAttachments[0].isBlendingEnabled = true
+            d.colorAttachments[0].sourceRGBBlendFactor = .destinationColor
+            d.colorAttachments[0].destinationRGBBlendFactor = .zero
+            d.colorAttachments[0].sourceAlphaBlendFactor = .zero
+            d.colorAttachments[0].destinationAlphaBlendFactor = .one
+            d.depthAttachmentPixelFormat = .depth32Float
+            d.rasterSampleCount = BodyRenderer.sampleCount
+            return try? device.makeRenderPipelineState(descriptor: d)
+        }
+        strokePipeline = paintPipeline("strokeFragment")
+        areaPipeline = paintPipeline("areaFragment")
+        let paintDepthDesc = MTLDepthStencilDescriptor()
+        paintDepthDesc.depthCompareFunction = .lessEqual
+        paintDepthDesc.isDepthWriteEnabled = false
+        paintDepth = device.makeDepthStencilState(descriptor: paintDepthDesc)
 
         let depth = MTLDepthStencilDescriptor()
         depth.depthCompareFunction = .less
@@ -106,7 +143,62 @@ final class BodyRenderer: NSObject, MTKViewDelegate {
             var u = Uniforms(c: cos(t), s: sin(t), cp: cos(pitch), sp: sin(pitch), map: shot.map)
             enc.setVertexBytes(&u, length: MemoryLayout<Uniforms>.stride, index: 3)
             enc.drawIndexedPrimitives(type: .triangle, indexCount: indexCount, indexType: .uint16, indexBuffer: indices, indexBufferOffset: 0)
+            paint(enc)
         }
+    }
+
+    /// Draws the painted areas and the stroke being drawn over the body just drawn, as the prototype's paintPass() does.
+    private func paint(_ enc: MTLRenderCommandEncoder) {
+        syncPaint()
+        let liveReady = live != nil && liveGPU != nil
+        guard let paintDepth, !areaGPU.isEmpty || liveReady else { return }
+        enc.setDepthStencilState(paintDepth)
+        enc.setDepthBias(-1, slopeScale: -1, clamp: 0)
+        if let areaPipeline {
+            enc.setRenderPipelineState(areaPipeline)
+            for d in areas {
+                guard let gpu = areaGPU[d.key] else { continue }
+                let m = d.mask, t = Float(d.yaw * .pi / 180), v = BodyMesh.viewDir(d.yaw)
+                var e = DecalUniforms(c2: cos(t), s2: sin(t),
+                                      box: SIMD4(Float(m.x0), Float(m.y0), Float(1 / (Double(m.w) * m.h)), Float(1 / (Double(m.ht) * m.h))),
+                                      view: SIMD4(Float(v[0]), Float(v[1]), Float(v[2]), 0))
+                enc.setVertexBytes(&e, length: MemoryLayout<DecalUniforms>.stride, index: 4)
+                enc.setFragmentTexture(gpu.tex, index: 0)
+                enc.drawIndexedPrimitives(type: .triangle, indexCount: gpu.count, indexType: .uint16, indexBuffer: gpu.ibuf, indexBufferOffset: 0)
+            }
+        }
+        if liveReady, let strokePipeline, let g = liveGPU {
+            enc.setRenderPipelineState(strokePipeline)
+            var e = DecalUniforms(c2: 1, s2: 0, box: .zero, view: .zero)
+            enc.setVertexBytes(&e, length: MemoryLayout<DecalUniforms>.stride, index: 4)
+            enc.setFragmentBuffer(g.touches, offset: 0, index: 0)
+            var n = g.n
+            enc.setFragmentBytes(&n, length: 4, index: 1)
+            enc.drawIndexedPrimitives(type: .triangle, indexCount: g.count, indexType: .uint16, indexBuffer: g.ibuf, indexBufferOffset: 0)
+        }
+        enc.setDepthBias(0, slopeScale: 0, clamp: 0)
+        enc.setRenderPipelineState(pipeline)
+        enc.setDepthStencilState(depthState)
+    }
+
+    /// Uploads masks and triangles for areas new since the last draw, and gives back those no longer shown.
+    private func syncPaint() {
+        let keys = Set(areas.map(\.key))
+        areaGPU = areaGPU.filter { keys.contains($0.key) }
+        for d in areas where areaGPU[d.key] == nil && !d.tris.isEmpty {
+            let m = d.mask
+            let td = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r8Unorm, width: m.w, height: m.ht, mipmapped: false)
+            td.usage = .shaderRead
+            guard let tex = device.makeTexture(descriptor: td),
+                  let ibuf = device.makeBuffer(bytes: d.tris, length: d.tris.count * 2) else { continue }
+            m.bytes.withUnsafeBytes { tex.replace(region: MTLRegionMake2D(0, 0, m.w, m.ht), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: m.w) }
+            areaGPU[d.key] = (tex, ibuf, d.tris.count)
+        }
+        guard let live, !live.tris.isEmpty, !live.touches.isEmpty else { liveGPU = nil; return }
+        if liveGPU?.version == live.version { return }
+        guard let touches = device.makeBuffer(bytes: live.touches, length: live.touches.count * MemoryLayout<SIMD4<Float>>.stride),
+              let ibuf = device.makeBuffer(bytes: live.tris, length: live.tris.count * 2) else { liveGPU = nil; return }
+        liveGPU = (live.version, touches, ibuf, live.tris.count, UInt32(live.touches.count))
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
@@ -146,10 +238,12 @@ final class BodyRenderer: NSObject, MTKViewDelegate {
         pass.depthAttachment.clearDepth = 1
         pass.depthAttachment.storeAction = .dontCare
         guard let enc = buffer.makeRenderCommandEncoder(descriptor: pass) else { return nil }
-        let saved = shots
+        let saved = (shots, areas, live)
         shots = [Shot(yaw: yaw, map: SIMD4(2 / 240, -2 / 440, -1, 1))]
+        areas = []
+        live = nil
         encode(enc, size: CGSize(width: width, height: height))
-        shots = saved
+        (shots, areas, live) = saved
         enc.endEncoding()
         buffer.commit()
         buffer.waitUntilCompleted()
@@ -170,6 +264,11 @@ final class BodyStageView: UIView {
     var renderer: BodyRenderer?
     weak var camera: BodyCamera?
     var onTap: ((CGPoint) -> Void)?
+    enum PaintEvent { case begin, move, end, cancel }
+    /// Press and hold, then drag, to paint an area.
+    var onPaint: ((PaintEvent, CGPoint) -> Void)?
+    /// The areas and stroke to paint, asked for each time the body is redrawn.
+    var paintScene: (() -> (areas: [BodyPaint.Decal], live: BodyPaint.Live?))?
 
     private var dragStart: (yaw: Double, pan: CGSize)?
     private var pinchStart: (zoom: CGFloat, mid: CGPoint)?
@@ -190,10 +289,13 @@ final class BodyStageView: UIView {
         let pan = UIPanGestureRecognizer(target: self, action: #selector(onPan(_:)))
         pan.maximumNumberOfTouches = 1
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(onPinch(_:)))
-        for g in [pan, pinch] as [UIGestureRecognizer] { addGestureRecognizer(g) }
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(onHold(_:)))
+        hold.minimumPressDuration = BodyPaint.holdSeconds
+        hold.allowableMovement = 6
+        for g in [pan, pinch, hold] as [UIGestureRecognizer] { addGestureRecognizer(g) }
         isMultipleTouchEnabled = true
         isAccessibilityElement = true
-        accessibilityLabel = "Body model. Tap to mark a point. Drag to turn the body. Pinch or use plus and minus to zoom."
+        accessibilityLabel = "Body model. Tap to mark a point. Press and hold, then drag, to paint an area. Drag to turn the body. Pinch or use plus and minus to zoom."
         accessibilityTraits = .allowsDirectInteraction
     }
 
@@ -211,6 +313,10 @@ final class BodyStageView: UIView {
         guard let camera, let renderer else { return }
         if let yaw { lastYaw = yaw }
         renderer.shots = [BodyRenderer.Shot(yaw: lastYaw, map: camera.clipMap)]
+        if let scene = paintScene?() {
+            renderer.areas = scene.areas
+            renderer.live = scene.live
+        }
         metal.setNeedsDisplay()
     }
 
@@ -259,6 +365,29 @@ final class BodyStageView: UIView {
         default:
             dragStart = nil
         }
+    }
+
+    // A hold that starts a stroke cancels the tap and the turn; a second finger drops the stroke.
+    @MainActor @objc private func onHold(_ g: UILongPressGestureRecognizer) {
+        let p = g.location(in: self)
+        switch g.state {
+        case .began:
+            tapStart = nil
+            onPaint?(.begin, p)
+        case .changed:
+            if g.numberOfTouches > 1 {
+                onPaint?(.cancel, p)
+                g.isEnabled = false
+                g.isEnabled = true
+            } else {
+                onPaint?(.move, p)
+            }
+        case .ended:
+            onPaint?(.end, p)
+        default:
+            onPaint?(.cancel, p)
+        }
+        redraw()
     }
 
     @MainActor @objc private func onPinch(_ g: UIPinchGestureRecognizer) {

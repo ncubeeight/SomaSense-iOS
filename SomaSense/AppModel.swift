@@ -102,6 +102,27 @@ final class AppModel {
         selected.append(BodyPoint(id: id, p: stored.p, n: hit.n, label: place.label, area: place.area, v: stored.v))
     }
 
+    /// Painting an area: press and hold, then drag. The brush stays the same size on screen at any zoom.
+    @ObservationIgnored private(set) lazy var paint: BodyPaint? = mesh.map { BodyPaint(mesh: $0) }
+
+    func paintBegin(sx: Double, sy: Double) {
+        guard let paint else { return }
+        paint.begin(yaw: shownYaw, r: BodyPaint.brush / Double(camera.zoom))
+        paint.strokeTo(sx: sx, sy: sy)
+    }
+
+    func paintMove(sx: Double, sy: Double) { paint?.strokeTo(sx: sx, sy: sy) }
+
+    func paintEnd(keep: Bool) {
+        if let pt = paint?.end(keep: keep) { selected.append(pt) }
+    }
+
+    /// The finished areas among the marked points, and the stroke being drawn.
+    func paintScene() -> (areas: [BodyPaint.Decal], live: BodyPaint.Live?) {
+        guard let paint else { return ([], nil) }
+        return (paint.decals(for: selected), paint.live)
+    }
+
     func removePin(_ id: String) { selected.removeAll { $0.id == id } }
 
     func clearPins() {
