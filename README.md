@@ -26,7 +26,7 @@ node tools/make_fixtures.js <path to SomaSense checkout>
 
 ## Credits
 
-Authored by ncubeeight LLC. Body models are provided by [MakeHuman](https://github.com/makehumancommunity/makehuman). The base mesh and the body shape offsets are derived from MakeHuman assets, which are released under CC0 1.0 Universal. MakeHuman's license is included in [licenses/MakeHuman-LICENSE.md](licenses/MakeHuman-LICENSE.md), with the full CC0 text for its assets in [licenses/MakeHuman-LICENSE.ASSETS.md](licenses/MakeHuman-LICENSE.ASSETS.md). Please keep this reference to the MakeHuman license in any derivative code that uses the body map.
+Authored by ncubeeight LLC for distribution on GitHub and the Apple App Store. Body models are provided by [MakeHuman](https://github.com/makehumancommunity/makehuman). The base mesh and the body shape offsets are derived from MakeHuman assets, which are released under CC0 1.0 Universal. MakeHuman's license is included in [licenses/MakeHuman-LICENSE.md](licenses/MakeHuman-LICENSE.md), with the full CC0 text for its assets in [licenses/MakeHuman-LICENSE.ASSETS.md](licenses/MakeHuman-LICENSE.ASSETS.md). Please keep this reference to the MakeHuman license in any derivative code that uses the body map.
 
 ## License
 
