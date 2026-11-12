@@ -1,0 +1,10 @@
+---
+---
+
+@import "{{ site.theme }}";
+
+.page-header { padding: 0 0 1.5rem; background: #10161f; }
+.page-header .project-name { margin: 0; font-size: 0; line-height: 0; }
+.page-header .project-name img { display: block; width: 100%; max-width: 1000px; height: auto; margin: 0 auto; }
+.main-content h1, .main-content h2 { color: #0B6169; }
+body { background: #FFFFFF; }

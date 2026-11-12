@@ -9,9 +9,13 @@ struct ReportsView: View {
         let active = s.groups.first { $0.cat == model.drillCat } ?? s.groups.first
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Reports").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-                    Text("Frequency by symptom or sensation").foregroundStyle(Ink.muted)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reports").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                        Text("Frequency by symptom or sensation").foregroundStyle(Ink.muted)
+                    }
+                    Spacer(minLength: 0)
+                    ShareButton(label: "Share PDF", hint: "Shares this period’s report") { model.openReportShare() }
                 }
                 HStack(spacing: 8) {
                     ForEach([7, 30, 90], id: \.self) { n in

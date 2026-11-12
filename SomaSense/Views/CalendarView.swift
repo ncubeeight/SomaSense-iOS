@@ -14,9 +14,13 @@ struct CalendarView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Calendar").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-                    Text("Where and when symptoms were reported").foregroundStyle(Ink.muted)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Calendar").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                        Text("Where and when symptoms were reported").foregroundStyle(Ink.muted)
+                    }
+                    Spacer(minLength: 0)
+                    ShareButton(label: "Share", hint: "Shares this month’s log") { model.openShare() }
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

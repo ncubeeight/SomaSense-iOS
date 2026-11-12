@@ -36,6 +36,8 @@ final class AppModel {
     var range = 30
     var drillCat: String?
     var toast: String?
+    /// The log or report being shared, shown in a preview first.
+    var share: SharePackage?
 
     let camera = BodyCamera()
     @ObservationIgnored let mesh = BodyMesh.loadBundled()
@@ -361,6 +363,8 @@ final class AppModel {
         composing = false
         detailId = nil
         editing = nil
+        share = nil
+        ShareExport.clearFiles()
         flash(gone ? "All stored data was deleted" : "Some stored data could not be deleted")
     }
 
@@ -376,6 +380,22 @@ final class AppModel {
 
     private func save() {
         if !store.save(log) { flash("Your log could not be saved. Check your phone’s free space.") }
+    }
+
+    // MARK: Sharing
+
+    /// Everything logged in the Calendar's month: a calendar picture, a PDF and a text list.
+    func openShare() {
+        share = ShareExport.monthLog(log, month: calMonth)
+    }
+
+    /// The Reports tab's period as a PDF and a text summary.
+    func openReportShare() {
+        guard let p = ShareExport.report(log, range: range, today: today) else {
+            flash("There are no reports in this period to share.")
+            return
+        }
+        share = p
     }
 
     func flash(_ msg: String) {

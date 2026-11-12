@@ -33,6 +33,7 @@ struct ContentView: View {
         .sheet(isPresented: Binding(get: { model.detailId != nil && model.detailReport != nil }, set: { if !$0 { model.detailId = nil } })) {
             if let r = model.detailReport { DetailView(report: r).environment(model) }
         }
+        .sheet(item: $model.share) { p in ShareView(package: p) }
         .overlay(alignment: .bottom) {
             if let t = model.toast {
                 Text(t)

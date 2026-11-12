@@ -13,7 +13,7 @@ struct SettingsView: View {
                 Text("Settings").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
                 VStack(alignment: .leading, spacing: 12) {
                     SectionTitle(text: "About")
-                    Text("SomaSense is a free and open source calendar tool for logging symptoms and sensations that are felt across the body. All data entered into the app is stored on this iPhone without being transmitted to the developer or to Apple.")
+                    Text("SomaSense is a free and open source calendar tool for logging symptoms and sensations that are felt across the body. All data entered into the app is stored on this iPhone without being transmitted to the developer or to Apple. You may share your own calendar log to email or other apps on your iPhone by selecting the Share option in the Calendar or Reports tab.")
                     Text("Use SomaSense to track feelings you have across the body over time and to monitor their progression or transience. When noticing any new or unusual pain or symptom, the tool can be used to create a log of a symptom’s progression for sharing with a physician. Please seek immediate care if you have a new symptom you haven’t addressed with your healthcare provider previously.")
                     BodyShapeSection()
                     Text("SomaSense was authored by ncubeeight LLC for distribution on GitHub and the Apple App Store. Visit ncubeeight at [ncubeeight.com](https://ncubeeight.com)")
@@ -59,9 +59,15 @@ struct PrivacyView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Draft for review").font(.caption.bold()).foregroundStyle(Ink.rust)
+                    Link("Full privacy policy", destination: URL(string: "https://ncubeeight.github.io/SomaSense-iOS/privacy/")!)
+                        .font(.body.weight(.semibold))
+                        .frame(minHeight: 44)
+                        .foregroundStyle(Ink.teal)
                     Text("Your log stays on this iPhone unless you choose to share it, and ncubeeight LLC never receives it.")
                     Text("What the app stores").font(.headline)
                     Text("The reports you save (where on the body, when, symptom types, severity, notes, medicines, activities and concerns), the days you mark as symptom-free, and the choices you remove from the lists.")
+                    Text("Sharing").font(.headline)
+                    Text("The Share buttons on the Calendar and Reports tabs send your information only when you choose to, by email or to the app you pick. Once sent, it’s handled by that app and the people you sent it to, and SomaSense can’t recall it.")
                     Text("Backups").font(.headline)
                     Text("The log is left out of iCloud and computer backups, so it won’t move to a new iPhone. To keep a copy, share your log before changing phones.")
                     Text("Security").font(.headline)
